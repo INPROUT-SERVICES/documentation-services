@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: documentation-service
+
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://18.117.173.122:5432/dbdocumentation}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:inpservices123}
+
+  jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_batch_fetch_size: 50
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+
+server:
+  port: 8084
+
+jwt:
+  secret: ${JWT_SECRET:bWV1cHJvamV0b2lucHJvdXRzZWd1cmFuY2EyMDI1Y29tY2hhdmVzdXBlcmZvcnRl}
+
+usuario:
+  service:
+    url: ${USUARIO_SERVICE_URL:http://hml-monolito:8080}
