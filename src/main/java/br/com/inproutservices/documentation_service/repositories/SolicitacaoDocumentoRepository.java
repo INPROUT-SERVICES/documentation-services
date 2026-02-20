@@ -5,6 +5,8 @@ import br.com.inproutservices.documentation_service.enums.StatusSolicitacaoDocum
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 
@@ -15,6 +17,17 @@ public interface SolicitacaoDocumentoRepository extends JpaRepository<Solicitaca
     List<SolicitacaoDocumento> findByOsId(Long osId);
 
     List<SolicitacaoDocumento> findByOsIdAndStatus(Long osId, StatusSolicitacaoDocumento status);
+
+    List<SolicitacaoDocumento> findByDocumentistaId(Long documentistaId);
+
+    List<SolicitacaoDocumento> findByDocumentistaIdAndStatus(Long documentistaId, StatusSolicitacaoDocumento status);
+
+    Page<SolicitacaoDocumento> findAll(Pageable pageable);
+    Page<SolicitacaoDocumento> findByStatus(StatusSolicitacaoDocumento status, Pageable pageable);
+    Page<SolicitacaoDocumento> findByOsId(Long osId, Pageable pageable);
+    Page<SolicitacaoDocumento> findByOsIdAndStatus(Long osId, StatusSolicitacaoDocumento status, Pageable pageable);
+    Page<SolicitacaoDocumento> findByDocumentistaId(Long documentistaId, Pageable pageable);
+    Page<SolicitacaoDocumento> findByDocumentistaIdAndStatus(Long documentistaId, StatusSolicitacaoDocumento status, Pageable pageable);
 
     boolean existsByOsIdAndDocumento_Id(Long osId, Long documentoId);
 

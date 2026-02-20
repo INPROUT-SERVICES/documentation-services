@@ -9,13 +9,15 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Base64; // Importante
-import java.util.Collections;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Component
 public class JwtRequestFilter extends OncePerRequestFilter {
@@ -34,7 +36,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             return;
         }
 
-        String token = header.replace("Bearer ", "");
+        String token = header.replace("Bearer ", "").trim();
 
         try {
             byte[] secretBytes = Base64.getDecoder().decode(secret);
@@ -42,20 +44,54 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 
             DecodedJWT jwt = JWT.require(algorithm).build().verify(token);
 
-            String usuario = jwt.getSubject();
+            String subject = jwt.getSubject();
 
-            if (usuario != null) {
+            if (subject != null && !subject.trim().isEmpty()) {
+
+                Collection<? extends GrantedAuthority> authorities = extrairAuthorities(jwt);
+
                 UsernamePasswordAuthenticationToken auth =
-                        new UsernamePasswordAuthenticationToken(usuario, null, Collections.emptyList());
+                        new UsernamePasswordAuthenticationToken(subject, null, authorities);
+
                 SecurityContextHolder.getContext().setAuthentication(auth);
             }
 
         } catch (Exception e) {
-
-            System.out.println("Erro JWT: " + e.getMessage()); // Log útil para debug no docker logs
+            System.out.println("Erro JWT: " + e.getMessage());
             SecurityContextHolder.clearContext();
         }
 
         chain.doFilter(request, response);
+    }
+
+    private Collection<? extends GrantedAuthority> extrairAuthorities(DecodedJWT jwt) {
+
+        List<String> roles = jwt.getClaim("roles").asList(String.class);
+        if (roles == null || roles.isEmpty()) {
+            roles = jwt.getClaim("authorities").asList(String.class);
+        }
+
+        if (roles == null || roles.isEmpty()) {
+            String role = jwt.getClaim("role").asString();
+            if (role != null && !role.trim().isEmpty()) {
+                roles = List.of(role);
+            }
+        }
+
+        if (roles == null) roles = Collections.emptyList();
+
+        return roles.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(r -> !r.isEmpty())
+                .map(this::normalizarParaRoleAuthority)
+                .distinct()
+                .map(SimpleGrantedAuthority::new)
+                .collect(Collectors.toList());
+    }
+
+    private String normalizarParaRoleAuthority(String role) {
+        if (role.startsWith("ROLE_")) return role;
+        return "ROLE_" + role.toUpperCase(Locale.ROOT);
     }
 }

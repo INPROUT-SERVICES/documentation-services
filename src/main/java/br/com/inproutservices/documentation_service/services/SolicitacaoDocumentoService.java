@@ -1,6 +1,8 @@
 package br.com.inproutservices.documentation_service.services;
 
+import br.com.inproutservices.documentation_service.client.MonolitoClient;
 import br.com.inproutservices.documentation_service.dtos.AcaoSolicitacaoRequest;
+import br.com.inproutservices.documentation_service.dtos.AtualizarLancamentosDocRequest;
 import br.com.inproutservices.documentation_service.dtos.FinalizarSolicitacaoRequest;
 import br.com.inproutservices.documentation_service.dtos.TotaisPorStatusDTO;
 import br.com.inproutservices.documentation_service.entities.Documento;
@@ -14,11 +16,16 @@ import br.com.inproutservices.documentation_service.repositories.SolicitacaoDocu
 import br.com.inproutservices.documentation_service.repositories.SolicitacaoDocumentoRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -27,19 +34,27 @@ public class SolicitacaoDocumentoService {
     private final SolicitacaoDocumentoRepository solicitacaoRepository;
     private final SolicitacaoDocumentoEventoRepository eventoRepository;
     private final DocumentoRepository documentoRepository;
+    private final MonolitoClient monolitoClient;
 
     // =========================
     // SOLICITAÇÃO
     // =========================
 
     @Transactional
-    public SolicitacaoDocumento criarSolicitacao(Long osId, Long documentoId, Long actorUsuarioId, String comentario) {
+    public SolicitacaoDocumento criarSolicitacao(Long osId,
+                                                 Long documentoId,
+                                                 Long documentistaId,
+                                                 Long actorUsuarioId,
+                                                 String comentario,
+                                                 Set<Long> lancamentoIds) {
+
         validarComentario(comentario);
 
         if (osId == null || osId <= 0) throw new RuntimeException("osId é obrigatório.");
         if (documentoId == null || documentoId <= 0) throw new RuntimeException("documentoId é obrigatório.");
+        if (documentistaId == null || documentistaId <= 0) throw new RuntimeException("documentistaId é obrigatório.");
+        if (actorUsuarioId == null || actorUsuarioId <= 0) throw new RuntimeException("actorUsuarioId é obrigatório.");
 
-        // IMPORTANTE: isso depende do repository corrigido (veja ajuste logo abaixo)
         if (solicitacaoRepository.existsByOsIdAndDocumento_Id(osId, documentoId)) {
             throw new RuntimeException("Já existe solicitação deste documento para esta OS.");
         }
@@ -50,16 +65,29 @@ public class SolicitacaoDocumentoService {
             throw new RuntimeException("Documento desativado não pode ser solicitado.");
         }
 
+        if (doc.getDocumentistasIds() == null || !doc.getDocumentistasIds().contains(documentistaId)) {
+            throw new RuntimeException("Documentista selecionado não está vinculado a este documento.");
+        }
+
         SolicitacaoDocumento solicitacao = new SolicitacaoDocumento();
         solicitacao.setOsId(osId);
         solicitacao.setDocumento(doc);
+        solicitacao.setDocumentistaId(documentistaId);
         solicitacao.setAtivo(true);
         solicitacao.setStatus(StatusSolicitacaoDocumento.AGUARDANDO_RECEBIMENTO);
         solicitacao.setProvaEnvio(null);
+        solicitacao.setLancamentoIds(lancamentoIds);
 
         SolicitacaoDocumento salvo = solicitacaoRepository.save(solicitacao);
 
         registrarEvento(salvo, TipoEventoSolicitacao.CRIADA, null, salvo.getStatus(), comentario, actorUsuarioId);
+
+        monolitoClient.atualizarStatusLancamentos(new AtualizarLancamentosDocRequest(
+                salvo.getLancamentoIds(),
+                "NOK",
+                LocalDate.now().plusDays(2),
+                "Aguardando documentação"
+        ));
 
         return salvo;
     }
@@ -81,7 +109,7 @@ public class SolicitacaoDocumentoService {
     public SolicitacaoDocumento marcarRecebido(Long solicitacaoId, AcaoSolicitacaoRequest request) {
         validarAcao(request);
 
-        SolicitacaoDocumento s = buscarSolicitacaoOuFalhar(solicitacaoId);
+        SolicitacaoDocumento s = buscarSolicitacao(solicitacaoId);
 
         if (s.getStatus() != StatusSolicitacaoDocumento.AGUARDANDO_RECEBIMENTO) {
             throw new RuntimeException("Solicitação não está aguardando recebimento.");
@@ -89,6 +117,7 @@ public class SolicitacaoDocumentoService {
 
         StatusSolicitacaoDocumento anterior = s.getStatus();
         s.setStatus(StatusSolicitacaoDocumento.RECEBIDO);
+        s.setRecebidoEm(LocalDateTime.now());
 
         SolicitacaoDocumento salvo = solicitacaoRepository.save(s);
 
@@ -102,20 +131,34 @@ public class SolicitacaoDocumentoService {
     public SolicitacaoDocumento finalizar(Long solicitacaoId, FinalizarSolicitacaoRequest request) {
         validarFinalizacao(request);
 
-        SolicitacaoDocumento s = buscarSolicitacaoOuFalhar(solicitacaoId);
+        SolicitacaoDocumento s = buscarSolicitacao(solicitacaoId);
 
         if (s.getStatus() != StatusSolicitacaoDocumento.RECEBIDO) {
             throw new RuntimeException("Solicitação precisa estar RECEBIDO para finalizar.");
         }
 
+        if (!Objects.equals(s.getDocumentistaId(), request.actorUsuarioId())) {
+            throw new RuntimeException("Apenas o documentista atribuído pode finalizar esta solicitação.");
+        }
+
         StatusSolicitacaoDocumento anterior = s.getStatus();
         s.setProvaEnvio(request.provaEnvio().trim());
         s.setStatus(StatusSolicitacaoDocumento.FINALIZADO);
+        s.setFinalizadoEm(LocalDateTime.now());
 
         SolicitacaoDocumento salvo = solicitacaoRepository.save(s);
 
         registrarEvento(salvo, TipoEventoSolicitacao.FINALIZADO, anterior, salvo.getStatus(),
                 request.comentario(), request.actorUsuarioId());
+
+        if (salvo.getLancamentoIds() != null && !salvo.getLancamentoIds().isEmpty()) {
+            monolitoClient.atualizarStatusLancamentos(new AtualizarLancamentosDocRequest(
+                    salvo.getLancamentoIds(),
+                    "OK",
+                    LocalDate.now(),
+                    "Finalizado"
+            ));
+        }
 
         return salvo;
     }
@@ -124,16 +167,22 @@ public class SolicitacaoDocumentoService {
     public SolicitacaoDocumento recusar(Long solicitacaoId, AcaoSolicitacaoRequest request) {
         validarAcao(request);
 
-        SolicitacaoDocumento s = buscarSolicitacaoOuFalhar(solicitacaoId);
+        SolicitacaoDocumento s = buscarSolicitacao(solicitacaoId);
 
         if (s.getStatus() != StatusSolicitacaoDocumento.RECEBIDO) {
             throw new RuntimeException("Solicitação precisa estar RECEBIDO para recusar.");
+        }
+
+        if (!Objects.equals(s.getDocumentistaId(), request.actorUsuarioId())) {
+            throw new RuntimeException("Apenas o documentista atribuído pode recusar esta solicitação.");
         }
 
         StatusSolicitacaoDocumento anterior = s.getStatus();
 
         s.setStatus(StatusSolicitacaoDocumento.AGUARDANDO_RECEBIMENTO);
         s.setProvaEnvio(null);
+        s.setRecebidoEm(null);
+        s.setFinalizadoEm(null);
 
         SolicitacaoDocumento salvo = solicitacaoRepository.save(s);
 
@@ -147,7 +196,7 @@ public class SolicitacaoDocumentoService {
     public void comentar(Long solicitacaoId, AcaoSolicitacaoRequest request) {
         validarAcao(request);
 
-        SolicitacaoDocumento s = buscarSolicitacaoOuFalhar(solicitacaoId);
+        SolicitacaoDocumento s = buscarSolicitacao(solicitacaoId);
 
         registrarEvento(s, TipoEventoSolicitacao.COMENTARIO, s.getStatus(), s.getStatus(),
                 request.comentario(), request.actorUsuarioId());
@@ -289,6 +338,30 @@ public class SolicitacaoDocumentoService {
                 .map(DocumentoPrecificacao::getValor)
                 .findFirst()
                 .orElse(null);
+    }
+
+    public Page<SolicitacaoDocumento> pageTodas(Pageable pageable) {
+        return solicitacaoRepository.findAll(pageable);
+    }
+
+    public Page<SolicitacaoDocumento> pagePorStatus(StatusSolicitacaoDocumento status, Pageable pageable) {
+        return solicitacaoRepository.findByStatus(status, pageable);
+    }
+
+    public Page<SolicitacaoDocumento> pagePorOs(Long osId, Pageable pageable) {
+        return solicitacaoRepository.findByOsId(osId, pageable);
+    }
+
+    public Page<SolicitacaoDocumento> pagePorOsEStatus(Long osId, StatusSolicitacaoDocumento status, Pageable pageable) {
+        return solicitacaoRepository.findByOsIdAndStatus(osId, status, pageable);
+    }
+
+    public Page<SolicitacaoDocumento> pagePorDocumentista(Long documentistaId, Pageable pageable) {
+        return solicitacaoRepository.findByDocumentistaId(documentistaId, pageable);
+    }
+
+    public Page<SolicitacaoDocumento> pagePorDocumentistaEStatus(Long documentistaId, StatusSolicitacaoDocumento status, Pageable pageable) {
+        return solicitacaoRepository.findByDocumentistaIdAndStatus(documentistaId, status, pageable);
     }
 
 }

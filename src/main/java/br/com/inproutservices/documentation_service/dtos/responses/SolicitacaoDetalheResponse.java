@@ -5,7 +5,6 @@ import br.com.inproutservices.documentation_service.enums.StatusSolicitacaoDocum
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Set;
 
 public record SolicitacaoDetalheResponse(
         Long id,
@@ -15,8 +14,10 @@ public record SolicitacaoDetalheResponse(
         String provaEnvio,
         LocalDateTime criadoEm,
         LocalDateTime atualizadoEm,
+        LocalDateTime recebidoEm,
+        LocalDateTime finalizadoEm,
         DocumentoResumoResponse documento,
-        Set<Long> documentistaIds,
-        Set<UsuarioDTO> documentistas,
+        Long documentistaId,
+        UsuarioDTO documentista,
         BigDecimal valorDoDocumentistaNaSolicitacao
 ) {}

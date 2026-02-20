@@ -5,6 +5,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(
@@ -31,6 +33,9 @@ public class SolicitacaoDocumento {
     @JoinColumn(name = "documento_id", nullable = false)
     private Documento documento;
 
+    @Column(name = "documentista_id", nullable = false)
+    private Long documentistaId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 40)
     private StatusSolicitacaoDocumento status = StatusSolicitacaoDocumento.AGUARDANDO_RECEBIMENTO;
@@ -41,11 +46,22 @@ public class SolicitacaoDocumento {
     @Column(nullable = false)
     private boolean ativo = true;
 
+    @Column(name = "recebido_em")
+    private LocalDateTime recebidoEm;
+
+    @Column(name = "finalizado_em")
+    private LocalDateTime finalizadoEm;
+
     @Column(name = "criado_em", nullable = false)
     private LocalDateTime criadoEm;
 
     @Column(name = "atualizado_em")
     private LocalDateTime atualizadoEm;
+
+    @ElementCollection
+    @CollectionTable(name = "solicitacao_documento_lancamentos", joinColumns = @JoinColumn(name = "solicitacao_id"))
+    @Column(name = "lancamento_id")
+    private Set<Long> lancamentoIds;
 
     @PrePersist
     public void prePersist() {

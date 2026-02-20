@@ -11,5 +11,8 @@ public record SolicitacaoListResponse(
         boolean ativo,
         LocalDateTime criadoEm,
         LocalDateTime atualizadoEm,
-        DocumentoResumoResponse documento
+        LocalDateTime recebidoEm,
+        LocalDateTime finalizadoEm,
+        DocumentoResumoResponse documento,
+        Long documentistaId
 ) {}
