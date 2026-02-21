@@ -23,12 +23,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Set;
-
 
 import static br.com.inproutservices.documentation_service.mappers.SolicitacaoMapper.toDetalhe;
 import static br.com.inproutservices.documentation_service.mappers.SolicitacaoMapper.toEvento;
-import static br.com.inproutservices.documentation_service.mappers.SolicitacaoMapper.toList;
 import static br.com.inproutservices.documentation_service.mappers.SolicitacaoMapper.valorDoDocumentistaNoDocumento;
 
 @RestController
@@ -93,7 +90,7 @@ public class SolicitacaoDocumentoController {
                                                                 @RequestParam(name = "documentistaId", required = false) Long documentistaId,
                                                                 Pageable pageable) {
 
-        Page<SolicitacaoDocumento> page;
+        Page<SolicitacaoListResponse> page;
 
         if (documentistaId != null && status != null) {
             page = solicitacaoService.pagePorDocumentistaEStatus(documentistaId, status, pageable);
@@ -109,8 +106,7 @@ public class SolicitacaoDocumentoController {
             page = solicitacaoService.pageTodas(pageable);
         }
 
-        Page<SolicitacaoListResponse> resp = page.map(s -> toList(s));
-        return ResponseEntity.ok(resp);
+        return ResponseEntity.ok(page);
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','CONTROLLER','COORDINATOR','DOCUMENTIST','MANAGER')")
@@ -133,7 +129,6 @@ public class SolicitacaoDocumentoController {
         }
 
         return ResponseEntity.ok(toDetalhe(s, documentista, valor));
-
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','CONTROLLER','COORDINATOR','DOCUMENTIST','MANAGER')")

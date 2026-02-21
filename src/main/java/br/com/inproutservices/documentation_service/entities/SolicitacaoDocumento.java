@@ -46,6 +46,9 @@ public class SolicitacaoDocumento {
     @Column(nullable = false)
     private boolean ativo = true;
 
+    @Column(name = "solicitante_id")
+    private Long solicitanteId;
+
     @Column(name = "recebido_em")
     private LocalDateTime recebidoEm;
 

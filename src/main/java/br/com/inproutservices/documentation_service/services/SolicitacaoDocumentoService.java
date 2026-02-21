@@ -5,12 +5,15 @@ import br.com.inproutservices.documentation_service.dtos.AcaoSolicitacaoRequest;
 import br.com.inproutservices.documentation_service.dtos.AtualizarLancamentosDocRequest;
 import br.com.inproutservices.documentation_service.dtos.FinalizarSolicitacaoRequest;
 import br.com.inproutservices.documentation_service.dtos.TotaisPorStatusDTO;
+import br.com.inproutservices.documentation_service.dtos.UsuarioDTO;
+import br.com.inproutservices.documentation_service.dtos.responses.SolicitacaoListResponse;
 import br.com.inproutservices.documentation_service.entities.Documento;
 import br.com.inproutservices.documentation_service.entities.DocumentoPrecificacao;
 import br.com.inproutservices.documentation_service.entities.SolicitacaoDocumento;
 import br.com.inproutservices.documentation_service.entities.SolicitacaoDocumentoEvento;
 import br.com.inproutservices.documentation_service.enums.StatusSolicitacaoDocumento;
 import br.com.inproutservices.documentation_service.enums.TipoEventoSolicitacao;
+import br.com.inproutservices.documentation_service.mappers.SolicitacaoMapper;
 import br.com.inproutservices.documentation_service.repositories.DocumentoRepository;
 import br.com.inproutservices.documentation_service.repositories.SolicitacaoDocumentoEventoRepository;
 import br.com.inproutservices.documentation_service.repositories.SolicitacaoDocumentoRepository;
@@ -35,6 +38,31 @@ public class SolicitacaoDocumentoService {
     private final SolicitacaoDocumentoEventoRepository eventoRepository;
     private final DocumentoRepository documentoRepository;
     private final MonolitoClient monolitoClient;
+    private final UsuarioFacade usuarioFacade;
+
+    // =========================
+    // ENRIQUECIMENTO (FRONTEND)
+    // =========================
+    public SolicitacaoListResponse mapearParaResponse(SolicitacaoDocumento s) {
+        String docNome = "Sem Responsável";
+        String solNome = "Sistema";
+
+        if (s.getDocumentistaId() != null) {
+            try {
+                UsuarioDTO doc = usuarioFacade.buscarUsuario(s.getDocumentistaId());
+                if (doc != null) docNome = doc.nome();
+            } catch (Exception ignored) {}
+        }
+
+        if (s.getSolicitanteId() != null) {
+            try {
+                UsuarioDTO sol = usuarioFacade.buscarUsuario(s.getSolicitanteId());
+                if (sol != null) solNome = sol.nome();
+            } catch (Exception ignored) {}
+        }
+
+        return SolicitacaoMapper.toList(s, solNome, docNome);
+    }
 
     // =========================
     // SOLICITAÇÃO
@@ -73,6 +101,7 @@ public class SolicitacaoDocumentoService {
         solicitacao.setOsId(osId);
         solicitacao.setDocumento(doc);
         solicitacao.setDocumentistaId(documentistaId);
+        solicitacao.setSolicitanteId(actorUsuarioId);
         solicitacao.setAtivo(true);
         solicitacao.setStatus(StatusSolicitacaoDocumento.AGUARDANDO_RECEBIMENTO);
         solicitacao.setProvaEnvio(null);
@@ -239,6 +268,34 @@ public class SolicitacaoDocumentoService {
     }
 
     // =========================
+    // LISTAGENS PAGINADAS
+    // =========================
+
+    public Page<SolicitacaoListResponse> pageTodas(Pageable pageable) {
+        return solicitacaoRepository.findAll(pageable).map(this::mapearParaResponse);
+    }
+
+    public Page<SolicitacaoListResponse> pagePorStatus(StatusSolicitacaoDocumento status, Pageable pageable) {
+        return solicitacaoRepository.findByStatus(status, pageable).map(this::mapearParaResponse);
+    }
+
+    public Page<SolicitacaoListResponse> pagePorOs(Long osId, Pageable pageable) {
+        return solicitacaoRepository.findByOsId(osId, pageable).map(this::mapearParaResponse);
+    }
+
+    public Page<SolicitacaoListResponse> pagePorOsEStatus(Long osId, StatusSolicitacaoDocumento status, Pageable pageable) {
+        return solicitacaoRepository.findByOsIdAndStatus(osId, status, pageable).map(this::mapearParaResponse);
+    }
+
+    public Page<SolicitacaoListResponse> pagePorDocumentista(Long documentistaId, Pageable pageable) {
+        return solicitacaoRepository.findByDocumentistaId(documentistaId, pageable).map(this::mapearParaResponse);
+    }
+
+    public Page<SolicitacaoListResponse> pagePorDocumentistaEStatus(Long documentistaId, StatusSolicitacaoDocumento status, Pageable pageable) {
+        return solicitacaoRepository.findByDocumentistaIdAndStatus(documentistaId, status, pageable).map(this::mapearParaResponse);
+    }
+
+    // =========================
     // TOTAIS
     // =========================
 
@@ -339,29 +396,4 @@ public class SolicitacaoDocumentoService {
                 .findFirst()
                 .orElse(null);
     }
-
-    public Page<SolicitacaoDocumento> pageTodas(Pageable pageable) {
-        return solicitacaoRepository.findAll(pageable);
-    }
-
-    public Page<SolicitacaoDocumento> pagePorStatus(StatusSolicitacaoDocumento status, Pageable pageable) {
-        return solicitacaoRepository.findByStatus(status, pageable);
-    }
-
-    public Page<SolicitacaoDocumento> pagePorOs(Long osId, Pageable pageable) {
-        return solicitacaoRepository.findByOsId(osId, pageable);
-    }
-
-    public Page<SolicitacaoDocumento> pagePorOsEStatus(Long osId, StatusSolicitacaoDocumento status, Pageable pageable) {
-        return solicitacaoRepository.findByOsIdAndStatus(osId, status, pageable);
-    }
-
-    public Page<SolicitacaoDocumento> pagePorDocumentista(Long documentistaId, Pageable pageable) {
-        return solicitacaoRepository.findByDocumentistaId(documentistaId, pageable);
-    }
-
-    public Page<SolicitacaoDocumento> pagePorDocumentistaEStatus(Long documentistaId, StatusSolicitacaoDocumento status, Pageable pageable) {
-        return solicitacaoRepository.findByDocumentistaIdAndStatus(documentistaId, status, pageable);
-    }
-
 }

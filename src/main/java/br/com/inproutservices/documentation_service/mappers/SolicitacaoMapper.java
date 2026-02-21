@@ -20,8 +20,10 @@ public final class SolicitacaoMapper {
     // =========================
     // LIST RESPONSE (tabelas)
     // =========================
-    public static SolicitacaoListResponse toList(SolicitacaoDocumento s) {
+    public static SolicitacaoListResponse toList(SolicitacaoDocumento s, String solicitanteNome, String documentistaNome) {
         if (s == null) return null;
+
+        BigDecimal valor = valorDoDocumentistaNoDocumento(s, s.getDocumentistaId());
 
         return new SolicitacaoListResponse(
                 s.getId(),
@@ -33,7 +35,10 @@ public final class SolicitacaoMapper {
                 s.getRecebidoEm(),
                 s.getFinalizadoEm(),
                 toDocumentoResumo(s),
-                s.getDocumentistaId()
+                s.getDocumentistaId(),
+                solicitanteNome,
+                documentistaNome,
+                valor
         );
     }
 
