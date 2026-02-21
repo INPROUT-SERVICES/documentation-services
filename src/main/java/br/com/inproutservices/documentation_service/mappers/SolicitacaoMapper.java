@@ -30,13 +30,15 @@ public final class SolicitacaoMapper {
                 s.isAtivo(),
                 s.getCriadoEm(),
                 s.getAtualizadoEm(),
+                s.getRecebidoEm(),
+                s.getFinalizadoEm(),
                 toDocumentoResumo(s),
                 s.getDocumentistaId()
         );
     }
 
     // =========================
-    // DETALHE (com documentista opcional)
+    // DETALHE
     // =========================
     public static SolicitacaoDetalheResponse toDetalhe(SolicitacaoDocumento s,
                                                        UsuarioDTO documentista,
@@ -51,6 +53,8 @@ public final class SolicitacaoMapper {
                 s.getProvaEnvio(),
                 s.getCriadoEm(),
                 s.getAtualizadoEm(),
+                s.getRecebidoEm(),
+                s.getFinalizadoEm(),
                 toDocumentoResumo(s),
                 s.getDocumentistaId(),
                 documentista,
