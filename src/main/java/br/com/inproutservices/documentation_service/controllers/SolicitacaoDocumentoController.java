@@ -9,7 +9,6 @@ import br.com.inproutservices.documentation_service.dtos.responses.SolicitacaoDe
 import br.com.inproutservices.documentation_service.dtos.responses.SolicitacaoEventoResponse;
 import br.com.inproutservices.documentation_service.dtos.responses.SolicitacaoListResponse;
 import br.com.inproutservices.documentation_service.entities.SolicitacaoDocumento;
-import br.com.inproutservices.documentation_service.entities.SolicitacaoDocumentoEvento;
 import br.com.inproutservices.documentation_service.enums.StatusSolicitacaoDocumento;
 import br.com.inproutservices.documentation_service.services.SolicitacaoDocumentoService;
 import br.com.inproutservices.documentation_service.services.UsuarioFacade;
@@ -25,7 +24,6 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import static br.com.inproutservices.documentation_service.mappers.SolicitacaoMapper.toDetalhe;
-import static br.com.inproutservices.documentation_service.mappers.SolicitacaoMapper.toEvento;
 import static br.com.inproutservices.documentation_service.mappers.SolicitacaoMapper.valorDoDocumentistaNoDocumento;
 
 @RestController
@@ -35,7 +33,6 @@ public class SolicitacaoDocumentoController {
 
     private final SolicitacaoDocumentoService solicitacaoService;
     private final UsuarioFacade usuarioFacade;
-
 
     @PreAuthorize("hasAnyRole('MANAGER','ADMIN')")
     @PostMapping
@@ -131,11 +128,13 @@ public class SolicitacaoDocumentoController {
         return ResponseEntity.ok(toDetalhe(s, documentista, valor));
     }
 
+    // =====================================
+    // ATUALIZADO: Chama o metodo Enriquecido
+    // =====================================
     @PreAuthorize("hasAnyRole('ADMIN','CONTROLLER','COORDINATOR','DOCUMENTIST','MANAGER')")
     @GetMapping("/{id}/historico")
     public ResponseEntity<List<SolicitacaoEventoResponse>> historico(@PathVariable Long id) {
-        List<SolicitacaoDocumentoEvento> eventos = solicitacaoService.historico(id);
-        List<SolicitacaoEventoResponse> resp = eventos.stream().map(e -> toEvento(e)).toList();
+        List<SolicitacaoEventoResponse> resp = solicitacaoService.historicoEnriquecido(id);
         return ResponseEntity.ok(resp);
     }
 

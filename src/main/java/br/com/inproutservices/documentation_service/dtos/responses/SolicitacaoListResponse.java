@@ -1,8 +1,8 @@
 package br.com.inproutservices.documentation_service.dtos.responses;
 
 import br.com.inproutservices.documentation_service.enums.StatusSolicitacaoDocumento;
-import java.time.LocalDateTime;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 public record SolicitacaoListResponse(
         Long id,
@@ -17,5 +17,6 @@ public record SolicitacaoListResponse(
         Long documentistaId,
         String solicitanteNome,
         String documentistaNome,
-        BigDecimal valor
+        BigDecimal valor,
+        String provaEnvio
 ) {}

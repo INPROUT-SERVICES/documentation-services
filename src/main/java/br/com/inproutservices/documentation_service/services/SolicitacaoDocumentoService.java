@@ -6,6 +6,7 @@ import br.com.inproutservices.documentation_service.dtos.AtualizarLancamentosDoc
 import br.com.inproutservices.documentation_service.dtos.FinalizarSolicitacaoRequest;
 import br.com.inproutservices.documentation_service.dtos.TotaisPorStatusDTO;
 import br.com.inproutservices.documentation_service.dtos.UsuarioDTO;
+import br.com.inproutservices.documentation_service.dtos.responses.SolicitacaoEventoResponse;
 import br.com.inproutservices.documentation_service.dtos.responses.SolicitacaoListResponse;
 import br.com.inproutservices.documentation_service.entities.Documento;
 import br.com.inproutservices.documentation_service.entities.DocumentoPrecificacao;
@@ -262,9 +263,26 @@ public class SolicitacaoDocumentoService {
         return solicitacaoRepository.listarPorDocumentistaEStatus(usuarioId, status);
     }
 
-    public List<SolicitacaoDocumentoEvento> historico(Long solicitacaoId) {
+    // =========================
+    // NOVO: HISTÓRICO COM INTEGRAÇÃO DE NOME
+    // =========================
+    public List<SolicitacaoEventoResponse> historicoEnriquecido(Long solicitacaoId) {
         if (solicitacaoId == null || solicitacaoId <= 0) throw new RuntimeException("solicitacaoId é obrigatório.");
-        return eventoRepository.findBySolicitacaoIdOrderByCriadoEmAsc(solicitacaoId);
+
+        List<SolicitacaoDocumentoEvento> eventos = eventoRepository.findBySolicitacaoIdOrderByCriadoEmAsc(solicitacaoId);
+
+        return eventos.stream().map(e -> {
+            String actorNome = "Sistema";
+            if (e.getActorUsuarioId() != null) {
+                try {
+                    UsuarioDTO user = usuarioFacade.buscarUsuario(e.getActorUsuarioId());
+                    if (user != null && user.nome() != null) {
+                        actorNome = user.nome();
+                    }
+                } catch (Exception ignored) {}
+            }
+            return SolicitacaoMapper.toEvento(e, actorNome);
+        }).toList();
     }
 
     // =========================

@@ -38,7 +38,8 @@ public final class SolicitacaoMapper {
                 s.getDocumentistaId(),
                 solicitanteNome,
                 documentistaNome,
-                valor
+                valor,
+                s.getProvaEnvio()
         );
     }
 
@@ -68,9 +69,9 @@ public final class SolicitacaoMapper {
     }
 
     // =========================
-    // EVENTO / HISTÓRICO
+    // EVENTO / HISTÓRICO ENRIQUECIDO
     // =========================
-    public static SolicitacaoEventoResponse toEvento(SolicitacaoDocumentoEvento e) {
+    public static SolicitacaoEventoResponse toEvento(SolicitacaoDocumentoEvento e, String actorNome) {
         if (e == null) return null;
 
         return new SolicitacaoEventoResponse(
@@ -80,6 +81,7 @@ public final class SolicitacaoMapper {
                 e.getStatusNovo(),
                 e.getComentario(),
                 e.getActorUsuarioId(),
+                actorNome,
                 e.getCriadoEm()
         );
     }

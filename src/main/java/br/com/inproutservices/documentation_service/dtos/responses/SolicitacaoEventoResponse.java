@@ -12,5 +12,6 @@ public record SolicitacaoEventoResponse(
         StatusSolicitacaoDocumento statusNovo,
         String comentario,
         Long actorUsuarioId,
+        String actorNome,
         LocalDateTime criadoEm
 ) {}
