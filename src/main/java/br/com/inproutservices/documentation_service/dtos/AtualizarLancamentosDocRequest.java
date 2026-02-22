@@ -4,7 +4,7 @@ import java.time.LocalDate;
 import java.util.Set;
 
 public record AtualizarLancamentosDocRequest(
-        Set<Long> osLpuDetalheIds,
+        Set<Long> lancamentoIds,
         String documentacao,
         LocalDate planoDocumentacao,
         String situacao

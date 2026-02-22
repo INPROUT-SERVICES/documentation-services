@@ -46,7 +46,7 @@ public class SolicitacaoDocumentoService {
     // =========================
     public SolicitacaoListResponse mapearParaResponse(SolicitacaoDocumento s) {
         String docNome = "Sem Responsável";
-        String solNome = "Sistema";
+        String solNome = s.getSolicitanteNome() != null ? s.getSolicitanteNome() : "Sistema";
 
         if (s.getDocumentistaId() != null) {
             try {
@@ -54,14 +54,6 @@ public class SolicitacaoDocumentoService {
                 if (doc != null) docNome = doc.nome();
             } catch (Exception ignored) {}
         }
-
-        if (s.getSolicitanteId() != null) {
-            try {
-                UsuarioDTO sol = usuarioFacade.buscarUsuario(s.getSolicitanteId());
-                if (sol != null) solNome = sol.nome();
-            } catch (Exception ignored) {}
-        }
-
         return SolicitacaoMapper.toList(s, solNome, docNome);
     }
 
@@ -75,7 +67,10 @@ public class SolicitacaoDocumentoService {
                                                  Long documentistaId,
                                                  Long actorUsuarioId,
                                                  String comentario,
-                                                 Set<Long> lancamentoIds) {
+                                                 Set<Long> lancamentoIds,
+                                                 String osNome,
+                                                 String segmentoNome,
+                                                 String solicitanteNome) {
 
         validarComentario(comentario);
 
@@ -103,6 +98,9 @@ public class SolicitacaoDocumentoService {
         solicitacao.setDocumento(doc);
         solicitacao.setDocumentistaId(documentistaId);
         solicitacao.setSolicitanteId(actorUsuarioId);
+        solicitacao.setOsNome(osNome);
+        solicitacao.setSegmentoNome(segmentoNome);
+        solicitacao.setSolicitanteNome(solicitanteNome);
         solicitacao.setAtivo(true);
         solicitacao.setStatus(StatusSolicitacaoDocumento.AGUARDANDO_RECEBIMENTO);
         solicitacao.setProvaEnvio(null);
@@ -289,27 +287,33 @@ public class SolicitacaoDocumentoService {
     // LISTAGENS PAGINADAS
     // =========================
 
-    public Page<SolicitacaoListResponse> pageTodas(Pageable pageable) {
+    public Page<SolicitacaoListResponse> pageTodas(List<String> segmentos, Pageable pageable) {
+        if (segmentos != null && !segmentos.isEmpty()) return solicitacaoRepository.findBySegmentoNomeIn(segmentos, pageable).map(this::mapearParaResponse);
         return solicitacaoRepository.findAll(pageable).map(this::mapearParaResponse);
     }
 
-    public Page<SolicitacaoListResponse> pagePorStatus(StatusSolicitacaoDocumento status, Pageable pageable) {
+    public Page<SolicitacaoListResponse> pagePorStatus(StatusSolicitacaoDocumento status, List<String> segmentos, Pageable pageable) {
+        if (segmentos != null && !segmentos.isEmpty()) return solicitacaoRepository.findByStatusAndSegmentoNomeIn(status, segmentos, pageable).map(this::mapearParaResponse);
         return solicitacaoRepository.findByStatus(status, pageable).map(this::mapearParaResponse);
     }
 
-    public Page<SolicitacaoListResponse> pagePorOs(Long osId, Pageable pageable) {
+    public Page<SolicitacaoListResponse> pagePorOs(Long osId, List<String> segmentos, Pageable pageable) {
+        if (segmentos != null && !segmentos.isEmpty()) return solicitacaoRepository.findByOsIdAndSegmentoNomeIn(osId, segmentos, pageable).map(this::mapearParaResponse);
         return solicitacaoRepository.findByOsId(osId, pageable).map(this::mapearParaResponse);
     }
 
-    public Page<SolicitacaoListResponse> pagePorOsEStatus(Long osId, StatusSolicitacaoDocumento status, Pageable pageable) {
+    public Page<SolicitacaoListResponse> pagePorOsEStatus(Long osId, StatusSolicitacaoDocumento status, List<String> segmentos, Pageable pageable) {
+        if (segmentos != null && !segmentos.isEmpty()) return solicitacaoRepository.findByOsIdAndStatusAndSegmentoNomeIn(osId, status, segmentos, pageable).map(this::mapearParaResponse);
         return solicitacaoRepository.findByOsIdAndStatus(osId, status, pageable).map(this::mapearParaResponse);
     }
 
-    public Page<SolicitacaoListResponse> pagePorDocumentista(Long documentistaId, Pageable pageable) {
+    public Page<SolicitacaoListResponse> pagePorDocumentista(Long documentistaId, List<String> segmentos, Pageable pageable) {
+        if (segmentos != null && !segmentos.isEmpty()) return solicitacaoRepository.findByDocumentistaIdAndSegmentoNomeIn(documentistaId, segmentos, pageable).map(this::mapearParaResponse);
         return solicitacaoRepository.findByDocumentistaId(documentistaId, pageable).map(this::mapearParaResponse);
     }
 
-    public Page<SolicitacaoListResponse> pagePorDocumentistaEStatus(Long documentistaId, StatusSolicitacaoDocumento status, Pageable pageable) {
+    public Page<SolicitacaoListResponse> pagePorDocumentistaEStatus(Long documentistaId, StatusSolicitacaoDocumento status, List<String> segmentos, Pageable pageable) {
+        if (segmentos != null && !segmentos.isEmpty()) return solicitacaoRepository.findByDocumentistaIdAndStatusAndSegmentoNomeIn(documentistaId, status, segmentos, pageable).map(this::mapearParaResponse);
         return solicitacaoRepository.findByDocumentistaIdAndStatus(documentistaId, status, pageable).map(this::mapearParaResponse);
     }
 

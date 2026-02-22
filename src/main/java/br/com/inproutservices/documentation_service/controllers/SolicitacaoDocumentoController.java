@@ -1,10 +1,6 @@
 package br.com.inproutservices.documentation_service.controllers;
 
-import br.com.inproutservices.documentation_service.dtos.AcaoSolicitacaoRequest;
-import br.com.inproutservices.documentation_service.dtos.CriarSolicitacaoRequest;
-import br.com.inproutservices.documentation_service.dtos.FinalizarSolicitacaoRequest;
-import br.com.inproutservices.documentation_service.dtos.TotaisPorStatusDTO;
-import br.com.inproutservices.documentation_service.dtos.UsuarioDTO;
+import br.com.inproutservices.documentation_service.dtos.*;
 import br.com.inproutservices.documentation_service.dtos.responses.SolicitacaoDetalheResponse;
 import br.com.inproutservices.documentation_service.dtos.responses.SolicitacaoEventoResponse;
 import br.com.inproutservices.documentation_service.dtos.responses.SolicitacaoListResponse;
@@ -18,6 +14,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -43,7 +41,10 @@ public class SolicitacaoDocumentoController {
                 request.documentistaId(),
                 request.actorUsuarioId(),
                 request.comentario(),
-                request.lancamentoIds()
+                request.lancamentoIds(),
+                request.osNome(),
+                request.segmentoNome(),
+                request.solicitanteNome()
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(toDetalhe(s, null, null));
     }
@@ -85,22 +86,37 @@ public class SolicitacaoDocumentoController {
     public ResponseEntity<Page<SolicitacaoListResponse>> listar(@RequestParam(name = "osId", required = false) Long osId,
                                                                 @RequestParam(name = "status", required = false) StatusSolicitacaoDocumento status,
                                                                 @RequestParam(name = "documentistaId", required = false) Long documentistaId,
+                                                                @RequestParam(name = "usuarioId", required = false) Long usuarioId,
                                                                 Pageable pageable) {
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        List<String> segmentosFiltro = null;
+
+        // Se o usuário for MANAGER ou COORDINATOR, ativamos a busca dos seus segmentos
+        boolean filtraPorSegmento = auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("MANAGER") || a.getAuthority().equals("COORDINATOR"));
+
+        if (filtraPorSegmento && usuarioId != null) {
+            UsuarioDTO user = usuarioFacade.buscarUsuario(usuarioId);
+            if (user != null && user.segmentos() != null) {
+                segmentosFiltro = user.segmentos().stream().map(SegmentoDTO::nome).toList();
+            }
+        }
 
         Page<SolicitacaoListResponse> page;
 
         if (documentistaId != null && status != null) {
-            page = solicitacaoService.pagePorDocumentistaEStatus(documentistaId, status, pageable);
+            page = solicitacaoService.pagePorDocumentistaEStatus(documentistaId, status, segmentosFiltro, pageable);
         } else if (documentistaId != null) {
-            page = solicitacaoService.pagePorDocumentista(documentistaId, pageable);
+            page = solicitacaoService.pagePorDocumentista(documentistaId, segmentosFiltro, pageable);
         } else if (osId != null && status != null) {
-            page = solicitacaoService.pagePorOsEStatus(osId, status, pageable);
+            page = solicitacaoService.pagePorOsEStatus(osId, status, segmentosFiltro, pageable);
         } else if (osId != null) {
-            page = solicitacaoService.pagePorOs(osId, pageable);
+            page = solicitacaoService.pagePorOs(osId, segmentosFiltro, pageable);
         } else if (status != null) {
-            page = solicitacaoService.pagePorStatus(status, pageable);
+            page = solicitacaoService.pagePorStatus(status, segmentosFiltro, pageable);
         } else {
-            page = solicitacaoService.pageTodas(pageable);
+            page = solicitacaoService.pageTodas(segmentosFiltro, pageable);
         }
 
         return ResponseEntity.ok(page);

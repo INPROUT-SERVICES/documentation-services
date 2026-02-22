@@ -7,6 +7,8 @@ import java.time.LocalDateTime;
 public record SolicitacaoListResponse(
         Long id,
         Long osId,
+        String osNome,
+        String segmentoNome,
         StatusSolicitacaoDocumento status,
         boolean ativo,
         LocalDateTime criadoEm,

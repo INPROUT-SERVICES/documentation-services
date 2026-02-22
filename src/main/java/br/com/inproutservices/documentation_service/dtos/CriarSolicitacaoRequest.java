@@ -8,5 +8,8 @@ public record CriarSolicitacaoRequest(
         Long documentistaId,
         Long actorUsuarioId,
         String comentario,
-        Set<Long> lancamentoIds
+        Set<Long> lancamentoIds,
+        String osNome,
+        String segmentoNome,
+        String solicitanteNome
 ) {}

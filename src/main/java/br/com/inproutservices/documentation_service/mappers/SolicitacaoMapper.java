@@ -28,6 +28,8 @@ public final class SolicitacaoMapper {
         return new SolicitacaoListResponse(
                 s.getId(),
                 s.getOsId(),
+                s.getOsNome(),
+                s.getSegmentoNome(),
                 s.getStatus(),
                 s.isAtivo(),
                 s.getCriadoEm(),
@@ -36,7 +38,7 @@ public final class SolicitacaoMapper {
                 s.getFinalizadoEm(),
                 toDocumentoResumo(s),
                 s.getDocumentistaId(),
-                solicitanteNome,
+                solicitanteNome != null && !solicitanteNome.equals("Sistema") ? solicitanteNome : s.getSolicitanteNome(),
                 documentistaNome,
                 valor,
                 s.getProvaEnvio()

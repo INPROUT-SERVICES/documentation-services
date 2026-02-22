@@ -49,6 +49,15 @@ public class SolicitacaoDocumento {
     @Column(name = "solicitante_id")
     private Long solicitanteId;
 
+    @Column(name = "solicitante_nome")
+    private String solicitanteNome;
+
+    @Column(name = "os_nome")
+    private String osNome;
+
+    @Column(name = "segmento_nome")
+    private String segmentoNome;
+
     @Column(name = "recebido_em")
     private LocalDateTime recebidoEm;
 
