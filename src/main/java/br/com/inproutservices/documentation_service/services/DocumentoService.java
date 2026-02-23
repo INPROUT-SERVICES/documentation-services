@@ -190,8 +190,8 @@ public class DocumentoService {
                 throw new RuntimeException("Usuário " + usuarioId + " não é documentista deste documento.");
             }
 
-            if (valor == null || valor.compareTo(BigDecimal.ZERO) <= 0) {
-                throw new RuntimeException("Valor inválido para usuário " + usuarioId + ".");
+            if (valor == null || valor.compareTo(BigDecimal.ZERO) < 0) {
+                throw new RuntimeException("Valor inválido para usuário " + usuarioId + ". O valor não pode ser negativo.");
             }
 
             if (!vistos.add(usuarioId)) {

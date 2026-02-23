@@ -81,7 +81,7 @@ public class SolicitacaoDocumentoController {
         return ResponseEntity.noContent().build();
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','CONTROLLER','COORDINATOR','DOCUMENTIST','MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN','CONTROLLER','COORDINATOR','DOCUMENTIST','MANAGER', 'ASSISTANT')")
     @GetMapping
     public ResponseEntity<Page<SolicitacaoListResponse>> listar(@RequestParam(name = "osId", required = false) Long osId,
                                                                 @RequestParam(name = "status", required = false) StatusSolicitacaoDocumento status,
