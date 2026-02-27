@@ -1,11 +1,7 @@
 package br.com.inproutservices.documentation_service.services;
 
 import br.com.inproutservices.documentation_service.client.MonolitoClient;
-import br.com.inproutservices.documentation_service.dtos.AcaoSolicitacaoRequest;
-import br.com.inproutservices.documentation_service.dtos.AtualizarLancamentosDocRequest;
-import br.com.inproutservices.documentation_service.dtos.FinalizarSolicitacaoRequest;
-import br.com.inproutservices.documentation_service.dtos.TotaisPorStatusDTO;
-import br.com.inproutservices.documentation_service.dtos.UsuarioDTO;
+import br.com.inproutservices.documentation_service.dtos.*;
 import br.com.inproutservices.documentation_service.dtos.responses.SolicitacaoEventoResponse;
 import br.com.inproutservices.documentation_service.dtos.responses.SolicitacaoListResponse;
 import br.com.inproutservices.documentation_service.entities.Documento;
@@ -93,8 +89,31 @@ public class SolicitacaoDocumentoService {
             throw new RuntimeException("Documentista selecionado não está vinculado a este documento.");
         }
 
+        String osCodigo;
+        String projetoNome;
+
+        try {
+            var osInfo = monolitoClient.buscarInfoOs(osId);
+
+            if (osInfo == null) {
+                throw new RuntimeException("A resposta do monolito retornou vazia.");
+            }
+
+            osCodigo = osInfo.os();
+            projetoNome = osInfo.projeto();
+
+        } catch (Exception e) {
+            throw new RuntimeException(
+                    "Não foi possível criar a solicitação pois houve uma falha de comunicação com o sistema principal (Monolito) " +
+                            "ao buscar as informações da OS (ID: " + osId + "). " +
+                            "Verifique se a OS existe e se o serviço está operante. Detalhe técnico: " + e.getMessage(), e
+            );
+        }
+
         SolicitacaoDocumento solicitacao = new SolicitacaoDocumento();
         solicitacao.setOsId(osId);
+        solicitacao.setOs(osCodigo);
+        solicitacao.setProjeto(projetoNome);
         solicitacao.setDocumento(doc);
         solicitacao.setDocumentistaId(documentistaId);
         solicitacao.setSolicitanteId(actorUsuarioId);
@@ -417,5 +436,26 @@ public class SolicitacaoDocumentoService {
                 .map(DocumentoPrecificacao::getValor)
                 .findFirst()
                 .orElse(null);
+    }
+
+    @Transactional
+    public void sincronizarOsEProjetoRetroativo() {
+        List<SolicitacaoDocumento> solicitacoes = solicitacaoRepository.findAll();
+
+        for (SolicitacaoDocumento s : solicitacoes) {
+            if (s.getOs() == null || s.getProjeto() == null) {
+                try {
+                    OsInfoDTO osInfo = monolitoClient.buscarInfoOs(s.getOsId());
+                    if (osInfo != null) {
+                        s.setOs(osInfo.os());
+                        s.setProjeto(osInfo.projeto());
+                        // Salva em lote indiretamente graças ao contexto transacional do Hibernate
+                        solicitacaoRepository.save(s);
+                    }
+                } catch (Exception e) {
+                    System.err.println("Falha ao sincronizar OS ID " + s.getOsId() + ": " + e.getMessage());
+                }
+            }
+        }
     }
 }

@@ -28,6 +28,8 @@ public final class SolicitacaoMapper {
         return new SolicitacaoListResponse(
                 s.getId(),
                 s.getOsId(),
+                s.getOs(),
+                s.getProjeto(),
                 s.getOsNome(),
                 s.getSegmentoNome(),
                 s.getStatus(),
@@ -56,6 +58,8 @@ public final class SolicitacaoMapper {
         return new SolicitacaoDetalheResponse(
                 s.getId(),
                 s.getOsId(),
+                s.getOs(),
+                s.getProjeto(),
                 s.getStatus(),
                 s.isAtivo(),
                 s.getProvaEnvio(),

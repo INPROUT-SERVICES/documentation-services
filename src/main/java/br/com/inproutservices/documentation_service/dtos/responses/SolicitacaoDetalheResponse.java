@@ -9,6 +9,8 @@ import java.time.LocalDateTime;
 public record SolicitacaoDetalheResponse(
         Long id,
         Long osId,
+        String os,
+        String projeto,
         StatusSolicitacaoDocumento status,
         boolean ativo,
         String provaEnvio,

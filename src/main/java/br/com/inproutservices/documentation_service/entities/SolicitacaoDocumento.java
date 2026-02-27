@@ -75,6 +75,12 @@ public class SolicitacaoDocumento {
     @Column(name = "lancamento_id")
     private Set<Long> lancamentoIds;
 
+    @Column(name = "os_codigo")
+    private String os;
+
+    @Column(name = "projeto")
+    private String projeto;
+
     @PrePersist
     public void prePersist() {
         this.criadoEm = LocalDateTime.now();

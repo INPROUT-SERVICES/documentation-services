@@ -160,4 +160,10 @@ public class SolicitacaoDocumentoController {
         TotaisPorStatusDTO totais = solicitacaoService.totaisDoDocumentistaPorStatus(documentistaId);
         return ResponseEntity.ok(totais);
     }
+
+    @PostMapping("/sync-legado-os-projeto")
+    public ResponseEntity<String> syncRetroativo() {
+        solicitacaoService.sincronizarOsEProjetoRetroativo();
+        return ResponseEntity.ok("Sincronização iniciada/concluída com sucesso.");
+    }
 }
