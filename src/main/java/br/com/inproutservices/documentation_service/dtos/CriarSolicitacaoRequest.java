@@ -11,5 +11,7 @@ public record CriarSolicitacaoRequest(
         Set<Long> lancamentoIds,
         String osNome,
         String segmentoNome,
-        String solicitanteNome
+        String solicitanteNome,
+        String site,
+        Boolean jaRecebido
 ) {}

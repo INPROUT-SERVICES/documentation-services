@@ -1,3 +1,3 @@
 package br.com.inproutservices.documentation_service.dtos;
 
-public record OsInfoDTO(String os, String projeto) {}
+public record OsInfoDTO(String os, String projeto, String segmentoNome) {}

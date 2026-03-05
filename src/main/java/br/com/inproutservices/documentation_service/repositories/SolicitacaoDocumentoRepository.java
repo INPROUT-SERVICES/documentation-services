@@ -31,6 +31,12 @@ public interface SolicitacaoDocumentoRepository extends JpaRepository<Solicitaca
 
     boolean existsByOsIdAndDocumento_Id(Long osId, Long documentoId);
 
+    boolean existsByOsIdAndSiteAndDocumento_Id(Long osId, String site, Long documentoId);
+
+    boolean existsByOsIdAndDocumento_IdAndDocumentistaId(Long osId, Long documentoId, Long documentistaId);
+
+    boolean existsByOsIdAndSiteAndDocumento_IdAndDocumentistaId(Long osId, String site, Long documentoId, Long documentistaId);
+
     @Query("""
        SELECT s
        FROM SolicitacaoDocumento s

@@ -1,8 +1,8 @@
 package br.com.inproutservices.documentation_service.config;
 
-import com.auth0.jwt.JWT;
-import com.auth0.jwt.algorithms.Algorithm;
-import com.auth0.jwt.interfaces.DecodedJWT;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,6 +15,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -22,7 +23,7 @@ import java.util.stream.Collectors;
 @Component
 public class JwtRequestFilter extends OncePerRequestFilter {
 
-    @Value("${jwt.secret}")
+    @Value("${jwt.secret:bWV1cHJvamV0b2lucHJvdXRzZWd1cmFuY2EyMDI1Y29tY2hhdmVzdXBlcmZvcnRl}")
     private String secret;
 
     @Override
@@ -39,16 +40,21 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         String token = header.replace("Bearer ", "").trim();
 
         try {
+            // Decodifica a chave e prepara para a validação do JJWT
             byte[] secretBytes = Base64.getDecoder().decode(secret);
-            Algorithm algorithm = Algorithm.HMAC256(secretBytes);
+            SecretKey key = Keys.hmacShaKeyFor(secretBytes);
 
-            DecodedJWT jwt = JWT.require(algorithm).build().verify(token);
+            Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(key)
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
 
-            String subject = jwt.getSubject();
+            String subject = claims.getSubject();
 
             if (subject != null && !subject.trim().isEmpty()) {
 
-                Collection<? extends GrantedAuthority> authorities = extrairAuthorities(jwt);
+                Collection<? extends GrantedAuthority> authorities = extrairAuthorities(claims);
 
                 UsernamePasswordAuthenticationToken auth =
                         new UsernamePasswordAuthenticationToken(subject, null, authorities);
@@ -64,15 +70,15 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
-    private Collection<? extends GrantedAuthority> extrairAuthorities(DecodedJWT jwt) {
+    private Collection<? extends GrantedAuthority> extrairAuthorities(Claims claims) {
 
-        List<String> roles = jwt.getClaim("roles").asList(String.class);
+        List<String> roles = extractListClaim(claims, "roles");
         if (roles == null || roles.isEmpty()) {
-            roles = jwt.getClaim("authorities").asList(String.class);
+            roles = extractListClaim(claims, "authorities");
         }
 
         if (roles == null || roles.isEmpty()) {
-            String role = jwt.getClaim("role").asString();
+            String role = claims.get("role", String.class);
             if (role != null && !role.trim().isEmpty()) {
                 roles = List.of(role);
             }
@@ -88,6 +94,15 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                 .distinct()
                 .map(SimpleGrantedAuthority::new)
                 .collect(Collectors.toList());
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> extractListClaim(Claims claims, String claimName) {
+        Object claim = claims.get(claimName);
+        if (claim instanceof List<?>) {
+            return (List<String>) claim;
+        }
+        return Collections.emptyList();
     }
 
     private String normalizarParaRoleAuthority(String role) {

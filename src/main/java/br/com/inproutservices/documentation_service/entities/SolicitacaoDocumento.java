@@ -12,7 +12,7 @@ import java.util.Set;
 @Table(
         name = "solicitacoes_documento",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_os_documento", columnNames = {"os_id", "documento_id"})
+                @UniqueConstraint(name = "uk_os_site_documento_documentista", columnNames = {"os_id", "site", "documento_id", "documentista_id"})
         }
 )
 @Getter
@@ -28,6 +28,9 @@ public class SolicitacaoDocumento {
 
     @Column(name = "os_id", nullable = false)
     private Long osId;
+
+    @Column(name = "site")
+    private String site;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "documento_id", nullable = false)

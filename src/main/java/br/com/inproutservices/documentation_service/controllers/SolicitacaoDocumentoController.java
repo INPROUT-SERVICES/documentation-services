@@ -44,7 +44,9 @@ public class SolicitacaoDocumentoController {
                 request.lancamentoIds(),
                 request.osNome(),
                 request.segmentoNome(),
-                request.solicitanteNome()
+                request.solicitanteNome(),
+                request.site(),
+                request.jaRecebido()
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(toDetalhe(s, null, null));
     }
@@ -93,8 +95,13 @@ public class SolicitacaoDocumentoController {
         List<String> segmentosFiltro = null;
 
         // Se o usuário for MANAGER ou COORDINATOR, ativamos a busca dos seus segmentos
+        // Aceita com ou sem prefixo ROLE_ (depende da config do Spring Security)
         boolean filtraPorSegmento = auth != null && auth.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("MANAGER") || a.getAuthority().equals("COORDINATOR"));
+                .anyMatch(a -> {
+                    String authority = a.getAuthority();
+                    return "MANAGER".equals(authority) || "ROLE_MANAGER".equals(authority)
+                            || "COORDINATOR".equals(authority) || "ROLE_COORDINATOR".equals(authority);
+                });
 
         if (filtraPorSegmento && usuarioId != null) {
             UsuarioDTO user = usuarioFacade.buscarUsuario(usuarioId);

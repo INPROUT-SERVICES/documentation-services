@@ -18,6 +18,8 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -66,7 +68,9 @@ public class SolicitacaoDocumentoService {
                                                  Set<Long> lancamentoIds,
                                                  String osNome,
                                                  String segmentoNome,
-                                                 String solicitanteNome) {
+                                                 String solicitanteNome,
+                                                 String site,
+                                                 Boolean jaRecebido) {
 
         validarComentario(comentario);
 
@@ -75,8 +79,15 @@ public class SolicitacaoDocumentoService {
         if (documentistaId == null || documentistaId <= 0) throw new RuntimeException("documentistaId é obrigatório.");
         if (actorUsuarioId == null || actorUsuarioId <= 0) throw new RuntimeException("actorUsuarioId é obrigatório.");
 
-        if (solicitacaoRepository.existsByOsIdAndDocumento_Id(osId, documentoId)) {
-            throw new RuntimeException("Já existe solicitação deste documento para esta OS.");
+        // Unicidade por OS + Site + Documento + Documentista (se site informado)
+        if (site != null && !site.isBlank()) {
+            if (solicitacaoRepository.existsByOsIdAndSiteAndDocumento_IdAndDocumentistaId(osId, site, documentoId, documentistaId)) {
+                throw new RuntimeException("Já existe solicitação deste documento para o documentista neste site '" + site + "' desta OS.");
+            }
+        } else {
+            if (solicitacaoRepository.existsByOsIdAndDocumento_IdAndDocumentistaId(osId, documentoId, documentistaId)) {
+                throw new RuntimeException("Já existe solicitação deste documento para o documentista nesta OS.");
+            }
         }
 
         Documento doc = buscarDocumentoOuFalhar(documentoId);
@@ -91,6 +102,7 @@ public class SolicitacaoDocumentoService {
 
         String osCodigo;
         String projetoNome;
+        String segmentoNomeReal;
 
         try {
             var osInfo = monolitoClient.buscarInfoOs(osId);
@@ -101,6 +113,8 @@ public class SolicitacaoDocumentoService {
 
             osCodigo = osInfo.os();
             projetoNome = osInfo.projeto();
+            // Segmento vem do monolito (fonte confiável), ignora o que o frontend mandou
+            segmentoNomeReal = osInfo.segmentoNome();
 
         } catch (Exception e) {
             throw new RuntimeException(
@@ -112,13 +126,14 @@ public class SolicitacaoDocumentoService {
 
         SolicitacaoDocumento solicitacao = new SolicitacaoDocumento();
         solicitacao.setOsId(osId);
+        solicitacao.setSite(site);
         solicitacao.setOs(osCodigo);
         solicitacao.setProjeto(projetoNome);
         solicitacao.setDocumento(doc);
         solicitacao.setDocumentistaId(documentistaId);
         solicitacao.setSolicitanteId(actorUsuarioId);
         solicitacao.setOsNome(osNome);
-        solicitacao.setSegmentoNome(segmentoNome);
+        solicitacao.setSegmentoNome(segmentoNomeReal);
         solicitacao.setSolicitanteNome(solicitanteNome);
         solicitacao.setAtivo(true);
         solicitacao.setStatus(StatusSolicitacaoDocumento.AGUARDANDO_RECEBIMENTO);
@@ -128,6 +143,18 @@ public class SolicitacaoDocumentoService {
         SolicitacaoDocumento salvo = solicitacaoRepository.save(solicitacao);
 
         registrarEvento(salvo, TipoEventoSolicitacao.CRIADA, null, salvo.getStatus(), comentario, actorUsuarioId);
+
+        // Se jaRecebido, muda direto para RECEBIDO (em análise)
+        if (Boolean.TRUE.equals(jaRecebido)) {
+            salvo.setStatus(StatusSolicitacaoDocumento.RECEBIDO);
+            salvo.setRecebidoEm(LocalDateTime.now());
+            salvo = solicitacaoRepository.save(salvo);
+
+            registrarEvento(salvo, TipoEventoSolicitacao.MARCADO_RECEBIDO,
+                    StatusSolicitacaoDocumento.AGUARDANDO_RECEBIMENTO,
+                    StatusSolicitacaoDocumento.RECEBIDO,
+                    "Marcado como recebido automaticamente na criação", actorUsuarioId);
+        }
 
         monolitoClient.atualizarStatusLancamentos(new AtualizarLancamentosDocRequest(
                 salvo.getLancamentoIds(),
@@ -184,8 +211,8 @@ public class SolicitacaoDocumentoService {
             throw new RuntimeException("Solicitação precisa estar RECEBIDO para finalizar.");
         }
 
-        if (!Objects.equals(s.getDocumentistaId(), request.actorUsuarioId())) {
-            throw new RuntimeException("Apenas o documentista atribuído pode finalizar esta solicitação.");
+        if (!Objects.equals(s.getDocumentistaId(), request.actorUsuarioId()) && !isUsuarioAdmin()) {
+            throw new RuntimeException("Apenas o documentista atribuído ou um ADMIN pode finalizar esta solicitação.");
         }
 
         StatusSolicitacaoDocumento anterior = s.getStatus();
@@ -220,15 +247,14 @@ public class SolicitacaoDocumentoService {
             throw new RuntimeException("Solicitação precisa estar RECEBIDO para recusar.");
         }
 
-        if (!Objects.equals(s.getDocumentistaId(), request.actorUsuarioId())) {
-            throw new RuntimeException("Apenas o documentista atribuído pode recusar esta solicitação.");
+        if (!Objects.equals(s.getDocumentistaId(), request.actorUsuarioId()) && !isUsuarioAdmin()) {
+            throw new RuntimeException("Apenas o documentista atribuído ou um ADMIN pode recusar esta solicitação.");
         }
 
         StatusSolicitacaoDocumento anterior = s.getStatus();
 
-        s.setStatus(StatusSolicitacaoDocumento.AGUARDANDO_RECEBIMENTO);
+        s.setStatus(StatusSolicitacaoDocumento.RECUSADO);
         s.setProvaEnvio(null);
-        s.setRecebidoEm(null);
         s.setFinalizadoEm(null);
 
         SolicitacaoDocumento salvo = solicitacaoRepository.save(s);
@@ -438,18 +464,31 @@ public class SolicitacaoDocumentoService {
                 .orElse(null);
     }
 
+    private boolean isUsuarioAdmin() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) return false;
+        return auth.getAuthorities().stream()
+                .anyMatch(a -> {
+                    String authority = a.getAuthority();
+                    return "ADMIN".equals(authority) || "ROLE_ADMIN".equals(authority);
+                });
+    }
+
     @Transactional
     public void sincronizarOsEProjetoRetroativo() {
         List<SolicitacaoDocumento> solicitacoes = solicitacaoRepository.findAll();
 
         for (SolicitacaoDocumento s : solicitacoes) {
-            if (s.getOs() == null || s.getProjeto() == null) {
+            boolean precisaSync = s.getOs() == null || s.getProjeto() == null
+                    || s.getSegmentoNome() == null || s.getSegmentoNome().isBlank()
+                    || "-".equals(s.getSegmentoNome());
+            if (precisaSync) {
                 try {
                     OsInfoDTO osInfo = monolitoClient.buscarInfoOs(s.getOsId());
                     if (osInfo != null) {
                         s.setOs(osInfo.os());
                         s.setProjeto(osInfo.projeto());
-                        // Salva em lote indiretamente graças ao contexto transacional do Hibernate
+                        s.setSegmentoNome(osInfo.segmentoNome());
                         solicitacaoRepository.save(s);
                     }
                 } catch (Exception e) {
