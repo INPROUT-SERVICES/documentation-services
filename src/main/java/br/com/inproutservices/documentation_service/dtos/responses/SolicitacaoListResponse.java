@@ -11,6 +11,7 @@ public record SolicitacaoListResponse(
         String projeto,
         String osNome,
         String segmentoNome,
+        String site,
         StatusSolicitacaoDocumento status,
         boolean ativo,
         LocalDateTime criadoEm,

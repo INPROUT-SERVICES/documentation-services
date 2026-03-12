@@ -29,12 +29,7 @@ public interface SolicitacaoDocumentoRepository extends JpaRepository<Solicitaca
     Page<SolicitacaoDocumento> findByDocumentistaId(Long documentistaId, Pageable pageable);
     Page<SolicitacaoDocumento> findByDocumentistaIdAndStatus(Long documentistaId, StatusSolicitacaoDocumento status, Pageable pageable);
 
-    boolean existsByOsIdAndDocumento_Id(Long osId, Long documentoId);
-
-    boolean existsByOsIdAndSiteAndDocumento_Id(Long osId, String site, Long documentoId);
-
-    boolean existsByOsIdAndDocumento_IdAndDocumentistaId(Long osId, Long documentoId, Long documentistaId);
-
+    // Único método de unicidade: OS + Site (nunca null, default '') + Documento + Documentista
     boolean existsByOsIdAndSiteAndDocumento_IdAndDocumentistaId(Long osId, String site, Long documentoId, Long documentistaId);
 
     @Query("""

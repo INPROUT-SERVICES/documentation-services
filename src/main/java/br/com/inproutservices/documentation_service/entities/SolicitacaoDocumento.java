@@ -29,8 +29,8 @@ public class SolicitacaoDocumento {
     @Column(name = "os_id", nullable = false)
     private Long osId;
 
-    @Column(name = "site")
-    private String site;
+    @Column(name = "site", nullable = false, columnDefinition = "varchar(255) default ''")
+    private String site = "";
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "documento_id", nullable = false)

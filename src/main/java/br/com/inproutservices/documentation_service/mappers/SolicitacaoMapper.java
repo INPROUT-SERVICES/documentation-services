@@ -32,6 +32,7 @@ public final class SolicitacaoMapper {
                 s.getProjeto(),
                 s.getOsNome(),
                 s.getSegmentoNome(),
+                s.getSite(),
                 s.getStatus(),
                 s.isAtivo(),
                 s.getCriadoEm(),

@@ -79,15 +79,13 @@ public class SolicitacaoDocumentoService {
         if (documentistaId == null || documentistaId <= 0) throw new RuntimeException("documentistaId é obrigatório.");
         if (actorUsuarioId == null || actorUsuarioId <= 0) throw new RuntimeException("actorUsuarioId é obrigatório.");
 
-        // Unicidade por OS + Site + Documento + Documentista (se site informado)
-        if (site != null && !site.isBlank()) {
-            if (solicitacaoRepository.existsByOsIdAndSiteAndDocumento_IdAndDocumentistaId(osId, site, documentoId, documentistaId)) {
-                throw new RuntimeException("Já existe solicitação deste documento para o documentista neste site '" + site + "' desta OS.");
-            }
-        } else {
-            if (solicitacaoRepository.existsByOsIdAndDocumento_IdAndDocumentistaId(osId, documentoId, documentistaId)) {
-                throw new RuntimeException("Já existe solicitação deste documento para o documentista nesta OS.");
-            }
+        // Normaliza site: null/blank → string vazia (evita problemas de NULL em UNIQUE constraint do PostgreSQL)
+        String siteNormalizado = (site != null && !site.isBlank()) ? site.trim() : "";
+
+        // Unicidade por OS + Site + Documento + Documentista
+        if (solicitacaoRepository.existsByOsIdAndSiteAndDocumento_IdAndDocumentistaId(osId, siteNormalizado, documentoId, documentistaId)) {
+            String msgSite = siteNormalizado.isEmpty() ? "" : " no site '" + siteNormalizado + "'";
+            throw new RuntimeException("Já existe solicitação deste documento para o documentista" + msgSite + " nesta OS.");
         }
 
         Documento doc = buscarDocumentoOuFalhar(documentoId);
@@ -126,7 +124,7 @@ public class SolicitacaoDocumentoService {
 
         SolicitacaoDocumento solicitacao = new SolicitacaoDocumento();
         solicitacao.setOsId(osId);
-        solicitacao.setSite(site);
+        solicitacao.setSite(siteNormalizado);
         solicitacao.setOs(osCodigo);
         solicitacao.setProjeto(projetoNome);
         solicitacao.setDocumento(doc);
@@ -481,7 +479,9 @@ public class SolicitacaoDocumentoService {
         for (SolicitacaoDocumento s : solicitacoes) {
             boolean precisaSync = s.getOs() == null || s.getProjeto() == null
                     || s.getSegmentoNome() == null || s.getSegmentoNome().isBlank()
-                    || "-".equals(s.getSegmentoNome());
+                    || "-".equals(s.getSegmentoNome())
+                    || s.getSite() == null;  // Normaliza sites NULL para ""
+
             if (precisaSync) {
                 try {
                     OsInfoDTO osInfo = monolitoClient.buscarInfoOs(s.getOsId());
@@ -489,8 +489,12 @@ public class SolicitacaoDocumentoService {
                         s.setOs(osInfo.os());
                         s.setProjeto(osInfo.projeto());
                         s.setSegmentoNome(osInfo.segmentoNome());
-                        solicitacaoRepository.save(s);
                     }
+                    // Sempre normaliza site NULL → ""
+                    if (s.getSite() == null) {
+                        s.setSite("");
+                    }
+                    solicitacaoRepository.save(s);
                 } catch (Exception e) {
                     System.err.println("Falha ao sincronizar OS ID " + s.getOsId() + ": " + e.getMessage());
                 }
