@@ -75,7 +75,15 @@ public class SolicitacaoDocumentoController {
         return ResponseEntity.ok(toDetalhe(s, null, null));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','CONTROLLER','COORDINATOR','DOCUMENTIST','MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN','COORDINATOR','MANAGER')")
+    @PostMapping("/{id}/resolicitar")
+    public ResponseEntity<SolicitacaoDetalheResponse> resolicitar(@PathVariable Long id,
+                                                                   @RequestBody AcaoSolicitacaoRequest request) {
+        SolicitacaoDocumento s = solicitacaoService.resolicitar(id, request);
+        return ResponseEntity.ok(toDetalhe(s, null, null));
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','CONTROLLER','COORDINATOR','DOCUMENTIST','MANAGER', 'VISUALIZADOR')")
     @PostMapping("/{id}/comentar")
     public ResponseEntity<Void> comentar(@PathVariable Long id,
                                          @RequestBody AcaoSolicitacaoRequest request) {
@@ -83,7 +91,7 @@ public class SolicitacaoDocumentoController {
         return ResponseEntity.noContent().build();
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','CONTROLLER','COORDINATOR','DOCUMENTIST','MANAGER', 'ASSISTANT')")
+    @PreAuthorize("hasAnyRole('ADMIN','CONTROLLER','COORDINATOR','DOCUMENTIST','MANAGER', 'ASSISTANT', 'VISUALIZADOR')")
     @GetMapping
     public ResponseEntity<Page<SolicitacaoListResponse>> listar(@RequestParam(name = "osId", required = false) Long osId,
                                                                 @RequestParam(name = "status", required = false) StatusSolicitacaoDocumento status,
@@ -129,7 +137,7 @@ public class SolicitacaoDocumentoController {
         return ResponseEntity.ok(page);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','CONTROLLER','COORDINATOR','DOCUMENTIST','MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN','CONTROLLER','COORDINATOR','DOCUMENTIST','MANAGER', 'VISUALIZADOR')")
     @GetMapping("/{id}")
     public ResponseEntity<SolicitacaoDetalheResponse> buscarDetalhe(@PathVariable Long id,
                                                                     @RequestParam(name = "includeDocumentista", defaultValue = "false") boolean includeDocumentista,
@@ -154,14 +162,14 @@ public class SolicitacaoDocumentoController {
     // =====================================
     // ATUALIZADO: Chama o metodo Enriquecido
     // =====================================
-    @PreAuthorize("hasAnyRole('ADMIN','CONTROLLER','COORDINATOR','DOCUMENTIST','MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN','CONTROLLER','COORDINATOR','DOCUMENTIST','MANAGER', 'VISUALIZADOR')")
     @GetMapping("/{id}/historico")
     public ResponseEntity<List<SolicitacaoEventoResponse>> historico(@PathVariable Long id) {
         List<SolicitacaoEventoResponse> resp = solicitacaoService.historicoEnriquecido(id);
         return ResponseEntity.ok(resp);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','CONTROLLER','COORDINATOR','DOCUMENTIST','MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN','CONTROLLER','COORDINATOR','DOCUMENTIST','MANAGER', 'VISUALIZADOR')")
     @GetMapping("/documentistas/{documentistaId}/totais")
     public ResponseEntity<TotaisPorStatusDTO> totais(@PathVariable Long documentistaId) {
         TotaisPorStatusDTO totais = solicitacaoService.totaisDoDocumentistaPorStatus(documentistaId);

@@ -264,6 +264,28 @@ public class SolicitacaoDocumentoService {
     }
 
     @Transactional
+    public SolicitacaoDocumento resolicitar(Long solicitacaoId, AcaoSolicitacaoRequest request) {
+        validarAcao(request);
+
+        SolicitacaoDocumento s = buscarSolicitacao(solicitacaoId);
+
+        if (s.getStatus() != StatusSolicitacaoDocumento.RECUSADO) {
+            throw new RuntimeException("Apenas solicitações RECUSADAS podem ser re-solicitadas.");
+        }
+
+        StatusSolicitacaoDocumento anterior = s.getStatus();
+
+        s.setStatus(StatusSolicitacaoDocumento.RECEBIDO);
+
+        SolicitacaoDocumento salvo = solicitacaoRepository.save(s);
+
+        registrarEvento(salvo, TipoEventoSolicitacao.RESOLICITADO, anterior, salvo.getStatus(),
+                request.comentario(), request.actorUsuarioId());
+
+        return salvo;
+    }
+
+    @Transactional
     public void comentar(Long solicitacaoId, AcaoSolicitacaoRequest request) {
         validarAcao(request);
 
