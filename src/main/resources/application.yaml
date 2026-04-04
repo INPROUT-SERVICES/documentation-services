@@ -4,9 +4,9 @@ spring:
 
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://18.117.173.122:5432/documentation_hml}
-    username: ${SPRING_DATASOURCE_USERNAME:inprout_hml}
-    password: ${SPRING_DATASOURCE_PASSWORD:Inprout@2026!}
+    url: ${SPRING_DATASOURCE_URL:}
+    username: ${SPRING_DATASOURCE_USERNAME:}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
 
   jpa:
     properties:
@@ -31,7 +31,7 @@ server:
     include-message: always
 
 jwt:
-  secret: ${JWT_SECRET:bWV1cHJvamV0b2lucHJvdXRzZWd1cmFuY2EyMDI1Y29tY2hhdmVzdXBlcmZvcnRl}
+  secret: ${JWT_SECRET:}
 
 usuario:
   service:

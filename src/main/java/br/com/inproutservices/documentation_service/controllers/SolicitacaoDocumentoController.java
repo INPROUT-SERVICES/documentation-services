@@ -83,11 +83,27 @@ public class SolicitacaoDocumentoController {
         return ResponseEntity.ok(toDetalhe(s, null, null));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','CONTROLLER','COORDINATOR','DOCUMENTIST','MANAGER', 'VISUALIZADOR')")
+    @PreAuthorize("hasAnyRole('MANAGER','ADMIN')")
+    @PutMapping("/{id}/editar")
+    public ResponseEntity<SolicitacaoDetalheResponse> editar(@PathVariable Long id,
+                                                              @RequestBody EditarSolicitacaoRequest request) {
+        SolicitacaoDocumento s = solicitacaoService.editar(id, request);
+        return ResponseEntity.ok(toDetalhe(s, null, null));
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','CONTROLLER','COORDINATOR','DOCUMENTIST','MANAGER', 'ASSISTANT', 'VISUALIZADOR')")
     @PostMapping("/{id}/comentar")
     public ResponseEntity<Void> comentar(@PathVariable Long id,
                                          @RequestBody AcaoSolicitacaoRequest request) {
         solicitacaoService.comentar(id, request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','CONTROLLER')")
+    @PatchMapping("/{id}/renegociar-desconto")
+    public ResponseEntity<Void> renegociarDesconto(@PathVariable Long id,
+                                                   @RequestBody br.com.inproutservices.documentation_service.dtos.RenegociarDescontoRequest request) {
+        solicitacaoService.renegociarDesconto(id, request);
         return ResponseEntity.noContent().build();
     }
 
@@ -137,7 +153,7 @@ public class SolicitacaoDocumentoController {
         return ResponseEntity.ok(page);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','CONTROLLER','COORDINATOR','DOCUMENTIST','MANAGER', 'VISUALIZADOR')")
+    @PreAuthorize("hasAnyRole('ADMIN','CONTROLLER','COORDINATOR','DOCUMENTIST','MANAGER', 'ASSISTANT', 'VISUALIZADOR')")
     @GetMapping("/{id}")
     public ResponseEntity<SolicitacaoDetalheResponse> buscarDetalhe(@PathVariable Long id,
                                                                     @RequestParam(name = "includeDocumentista", defaultValue = "false") boolean includeDocumentista,
@@ -162,7 +178,7 @@ public class SolicitacaoDocumentoController {
     // =====================================
     // ATUALIZADO: Chama o metodo Enriquecido
     // =====================================
-    @PreAuthorize("hasAnyRole('ADMIN','CONTROLLER','COORDINATOR','DOCUMENTIST','MANAGER', 'VISUALIZADOR')")
+    @PreAuthorize("hasAnyRole('ADMIN','CONTROLLER','COORDINATOR','DOCUMENTIST','MANAGER', 'ASSISTANT', 'VISUALIZADOR')")
     @GetMapping("/{id}/historico")
     public ResponseEntity<List<SolicitacaoEventoResponse>> historico(@PathVariable Long id) {
         List<SolicitacaoEventoResponse> resp = solicitacaoService.historicoEnriquecido(id);
@@ -180,5 +196,11 @@ public class SolicitacaoDocumentoController {
     public ResponseEntity<String> syncRetroativo() {
         solicitacaoService.sincronizarOsEProjetoRetroativo();
         return ResponseEntity.ok("Sincronização iniciada/concluída com sucesso.");
+    }
+
+    @GetMapping("/custos-por-os")
+    public ResponseEntity<java.util.Map<Long, java.util.Map<String, java.math.BigDecimal>>> custosPorOs(
+            @RequestParam("osIds") java.util.List<Long> osIds) {
+        return ResponseEntity.ok(solicitacaoService.custosPorOs(osIds));
     }
 }

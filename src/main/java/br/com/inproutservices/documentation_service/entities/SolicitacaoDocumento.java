@@ -84,6 +84,21 @@ public class SolicitacaoDocumento {
     @Column(name = "projeto")
     private String projeto;
 
+    @Column(name = "prazo_entrega")
+    private LocalDateTime prazoEntrega;
+
+    @Column(name = "valor_desconto", precision = 10, scale = 2)
+    private java.math.BigDecimal valorDesconto;
+
+    @Column(name = "percentual_desconto", precision = 5, scale = 2)
+    private java.math.BigDecimal percentualDesconto;
+
+    @Column(name = "desconto_renegociado")
+    private Boolean descontoRenegociado = false;
+
+    @Column(name = "valor_final", precision = 10, scale = 2)
+    private java.math.BigDecimal valorFinal;
+
     @PrePersist
     public void prePersist() {
         this.criadoEm = LocalDateTime.now();

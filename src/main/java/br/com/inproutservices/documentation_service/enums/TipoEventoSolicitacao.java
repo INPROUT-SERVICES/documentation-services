@@ -6,5 +6,7 @@ public enum TipoEventoSolicitacao {
     FINALIZADO,
     RECUSADO,
     RESOLICITADO,
-    COMENTARIO
+    COMENTARIO,
+    EDITADO,
+    DESCONTO_RENEGOCIADO
 }

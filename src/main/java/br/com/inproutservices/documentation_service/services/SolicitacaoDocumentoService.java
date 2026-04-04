@@ -38,6 +38,14 @@ public class SolicitacaoDocumentoService {
     private final DocumentoRepository documentoRepository;
     private final MonolitoClient monolitoClient;
     private final UsuarioFacade usuarioFacade;
+    private final DescontoService descontoService;
+
+    private static final java.util.Set<String> DOCUMENTOS_PDI = java.util.Set.of(
+            "PDI + CAD (PPI FORNECIDO)",
+            "PDI COM PPI (SEM LAYOUT)",
+            "PDI DIRETO SEM PPI (SEM LAYOUT)",
+            "PDI SEM PPI + CAD"
+    );
 
     // =========================
     // ENRIQUECIMENTO (FRONTEND)
@@ -155,7 +163,7 @@ public class SolicitacaoDocumentoService {
         }
 
         monolitoClient.atualizarStatusLancamentos(new AtualizarLancamentosDocRequest(
-                salvo.getLancamentoIds(),
+                resolverLancamentoIdsParaUpdate(salvo),
                 "NOK",
                 LocalDate.now().plusDays(2),
                 "Aguardando documentação"
@@ -218,6 +226,11 @@ public class SolicitacaoDocumentoService {
         s.setStatus(StatusSolicitacaoDocumento.FINALIZADO);
         s.setFinalizadoEm(LocalDateTime.now());
 
+        // Calcular desconto se aplicável
+        BigDecimal valorOriginal = br.com.inproutservices.documentation_service.mappers.SolicitacaoMapper
+                .valorDoDocumentistaNoDocumento(s, s.getDocumentistaId());
+        descontoService.aplicarDesconto(s, valorOriginal);
+
         SolicitacaoDocumento salvo = solicitacaoRepository.save(s);
 
         registrarEvento(salvo, TipoEventoSolicitacao.FINALIZADO, anterior, salvo.getStatus(),
@@ -225,7 +238,7 @@ public class SolicitacaoDocumentoService {
 
         if (salvo.getLancamentoIds() != null && !salvo.getLancamentoIds().isEmpty()) {
             monolitoClient.atualizarStatusLancamentos(new AtualizarLancamentosDocRequest(
-                    salvo.getLancamentoIds(),
+                    resolverLancamentoIdsParaUpdate(salvo),
                     "OK",
                     LocalDate.now(),
                     "Finalizado"
@@ -281,6 +294,110 @@ public class SolicitacaoDocumentoService {
 
         registrarEvento(salvo, TipoEventoSolicitacao.RESOLICITADO, anterior, salvo.getStatus(),
                 request.comentario(), request.actorUsuarioId());
+
+        return salvo;
+    }
+
+    @Transactional
+    public SolicitacaoDocumento editar(Long solicitacaoId, EditarSolicitacaoRequest request) {
+        if (request == null) throw new RuntimeException("Payload inválido.");
+        if (request.actorUsuarioId() == null || request.actorUsuarioId() <= 0) {
+            throw new RuntimeException("actorUsuarioId é obrigatório.");
+        }
+        validarComentario(request.comentario());
+
+        SolicitacaoDocumento s = buscarSolicitacao(solicitacaoId);
+
+        if (s.getStatus() != StatusSolicitacaoDocumento.RECUSADO) {
+            throw new RuntimeException("Apenas solicitações RECUSADAS podem ser editadas.");
+        }
+
+        StringBuilder detalhes = new StringBuilder(request.comentario());
+        boolean houveMudanca = false;
+
+        // Guardar IDs antigos para liberar no monolito
+        Set<Long> idsAntigos = s.getLancamentoIds() != null ? new java.util.HashSet<>(s.getLancamentoIds()) : Set.of();
+
+        // Alterar documento
+        if (request.documentoId() != null && !request.documentoId().equals(s.getDocumento().getId())) {
+            Documento novoDoc = buscarDocumentoOuFalhar(request.documentoId());
+            if (!novoDoc.isAtivo()) {
+                throw new RuntimeException("Documento desativado não pode ser selecionado.");
+            }
+            String docAnterior = s.getDocumento().getNome();
+            s.setDocumento(novoDoc);
+            detalhes.append(" | Documento alterado de '").append(docAnterior).append("' para '").append(novoDoc.getNome()).append("'");
+            houveMudanca = true;
+        }
+
+        // Alterar documentista
+        if (request.documentistaId() != null && !request.documentistaId().equals(s.getDocumentistaId())) {
+            Documento doc = s.getDocumento();
+            if (doc.getDocumentistasIds() != null && !doc.getDocumentistasIds().contains(request.documentistaId())) {
+                throw new RuntimeException("O documentista selecionado não está vinculado a este documento.");
+            }
+
+            String nomeAnterior = "ID:" + s.getDocumentistaId();
+            try {
+                UsuarioDTO anteriorUser = usuarioFacade.buscarUsuario(s.getDocumentistaId());
+                if (anteriorUser != null) nomeAnterior = anteriorUser.nome();
+            } catch (Exception ignored) {}
+
+            String nomeNovo = "ID:" + request.documentistaId();
+            try {
+                UsuarioDTO novoUser = usuarioFacade.buscarUsuario(request.documentistaId());
+                if (novoUser != null) nomeNovo = novoUser.nome();
+            } catch (Exception ignored) {}
+
+            s.setDocumentistaId(request.documentistaId());
+            detalhes.append(" | Responsável alterado de '").append(nomeAnterior).append("' para '").append(nomeNovo).append("'");
+            houveMudanca = true;
+        }
+
+        // Alterar itens (lancamentoIds)
+        if (request.lancamentoIds() != null) {
+            Set<Long> novosIds = request.lancamentoIds();
+            if (!novosIds.equals(idsAntigos)) {
+                int qtdAnterior = idsAntigos.size();
+                int qtdNova = novosIds.size();
+                s.setLancamentoIds(novosIds);
+                detalhes.append(" | Itens alterados de ").append(qtdAnterior).append(" para ").append(qtdNova);
+                houveMudanca = true;
+            }
+        }
+
+        if (!houveMudanca) {
+            throw new RuntimeException("Nenhuma alteração foi informada.");
+        }
+
+        // Volta para AGUARDANDO_RECEBIMENTO após edição
+        StatusSolicitacaoDocumento anterior = s.getStatus();
+        s.setStatus(StatusSolicitacaoDocumento.AGUARDANDO_RECEBIMENTO);
+        s.setProvaEnvio(null);
+        s.setFinalizadoEm(null);
+
+        SolicitacaoDocumento salvo = solicitacaoRepository.save(s);
+
+        registrarEvento(salvo, TipoEventoSolicitacao.EDITADO, anterior, salvo.getStatus(),
+                detalhes.toString(), request.actorUsuarioId());
+
+        // Liberar itens removidos no monolito
+        Set<Long> idsNovos = salvo.getLancamentoIds() != null ? salvo.getLancamentoIds() : Set.of();
+        Set<Long> removidos = new java.util.HashSet<>(idsAntigos);
+        removidos.removeAll(idsNovos);
+        if (!removidos.isEmpty()) {
+            try {
+                monolitoClient.atualizarStatusLancamentos(new AtualizarLancamentosDocRequest(
+                        removidos, null, null, null));
+            } catch (Exception ignored) {}
+        }
+
+        // Marcar novos itens como NOK (com expansão PDI)
+        Set<Long> idsParaUpdate = resolverLancamentoIdsParaUpdate(salvo);
+        if (!idsParaUpdate.isEmpty()) {
+            monolitoClient.atualizarStatusLancamentos(new AtualizarLancamentosDocRequest(
+                    idsParaUpdate, "NOK", LocalDate.now().plusDays(2), "Aguardando documentação"));
+        }
 
         return salvo;
     }
@@ -418,6 +535,35 @@ public class SolicitacaoDocumentoService {
     // HELPERS
     // =========================
 
+    /**
+     * Para documentos PDI, expande os lancamentoIds para TODOS os lançamentos aprovados da OS+Site.
+     * Para outros documentos, retorna os lancamentoIds salvos na solicitação.
+     */
+    private Set<Long> resolverLancamentoIdsParaUpdate(SolicitacaoDocumento s) {
+        if (s.getLancamentoIds() == null || s.getLancamentoIds().isEmpty()) {
+            // Mesmo sem IDs selecionados, se for PDI, busca todos da OS+Site
+            if (s.getDocumento() != null && DOCUMENTOS_PDI.contains(s.getDocumento().getNome())) {
+                try {
+                    return monolitoClient.buscarLancamentosPorOsSite(s.getOsId(), s.getSite() != null ? s.getSite() : "");
+                } catch (Exception e) {
+                    return Set.of();
+                }
+            }
+            return Set.of();
+        }
+
+        if (s.getDocumento() != null && DOCUMENTOS_PDI.contains(s.getDocumento().getNome())) {
+            try {
+                Set<Long> todosDoSite = monolitoClient.buscarLancamentosPorOsSite(s.getOsId(), s.getSite() != null ? s.getSite() : "");
+                return todosDoSite != null && !todosDoSite.isEmpty() ? todosDoSite : s.getLancamentoIds();
+            } catch (Exception e) {
+                return s.getLancamentoIds();
+            }
+        }
+
+        return s.getLancamentoIds();
+    }
+
     private void validarComentario(String comentario) {
         if (comentario == null || comentario.trim().length() < 3) {
             throw new RuntimeException("Comentário obrigatório (mínimo 3 caracteres).");
@@ -522,5 +668,66 @@ public class SolicitacaoDocumentoService {
                 }
             }
         }
+    }
+
+    /**
+     * Retorna custos de documentação agrupados por osId.
+     * "pago" = soma de valores de solicitações FINALIZADO ou FINALIZADO_FORA_PRAZO
+     * "previsto" = soma de valores de TODAS as solicitações
+     */
+    public java.util.Map<Long, java.util.Map<String, BigDecimal>> custosPorOs(List<Long> osIds) {
+        List<SolicitacaoDocumento> solicitacoes = solicitacaoRepository.findByOsIdIn(osIds);
+
+        java.util.Map<Long, java.util.Map<String, BigDecimal>> resultado = new java.util.HashMap<>();
+
+        for (SolicitacaoDocumento s : solicitacoes) {
+            BigDecimal valor = SolicitacaoMapper.valorDoDocumentistaNoDocumento(s, s.getDocumentistaId());
+            if (valor == null) valor = BigDecimal.ZERO;
+
+            resultado.computeIfAbsent(s.getOsId(), k -> {
+                java.util.Map<String, BigDecimal> m = new java.util.HashMap<>();
+                m.put("pago", BigDecimal.ZERO);
+                m.put("previsto", BigDecimal.ZERO);
+                return m;
+            });
+
+            java.util.Map<String, BigDecimal> custos = resultado.get(s.getOsId());
+            custos.put("previsto", custos.get("previsto").add(valor));
+
+            if (s.getStatus() == StatusSolicitacaoDocumento.FINALIZADO
+                    || s.getStatus() == StatusSolicitacaoDocumento.FINALIZADO_FORA_PRAZO) {
+                custos.put("pago", custos.get("pago").add(valor));
+            }
+        }
+
+        return resultado;
+    }
+
+    @Transactional
+    public void renegociarDesconto(Long solicitacaoId, br.com.inproutservices.documentation_service.dtos.RenegociarDescontoRequest request) {
+        SolicitacaoDocumento s = buscarSolicitacao(solicitacaoId);
+
+        if (s.getStatus() != StatusSolicitacaoDocumento.FINALIZADO && s.getStatus() != StatusSolicitacaoDocumento.FINALIZADO_FORA_PRAZO) {
+            throw new RuntimeException("Apenas solicitações finalizadas podem ter desconto renegociado.");
+        }
+
+        BigDecimal valorOriginal = br.com.inproutservices.documentation_service.mappers.SolicitacaoMapper
+                .valorDoDocumentistaNoDocumento(s, s.getDocumentistaId());
+        if (valorOriginal == null) valorOriginal = BigDecimal.ZERO;
+
+        BigDecimal novoPercentual = request.novoPercentualDesconto();
+        if (novoPercentual == null || novoPercentual.compareTo(BigDecimal.ZERO) < 0) novoPercentual = BigDecimal.ZERO;
+        if (novoPercentual.compareTo(new BigDecimal("0.50")) > 0) novoPercentual = new BigDecimal("0.50");
+
+        BigDecimal desconto = valorOriginal.multiply(novoPercentual).setScale(2, java.math.RoundingMode.HALF_UP);
+        s.setDescontoRenegociado(true);
+        s.setPercentualDesconto(novoPercentual);
+        s.setValorDesconto(desconto);
+        s.setValorFinal(valorOriginal.subtract(desconto));
+
+        solicitacaoRepository.save(s);
+
+        registrarEvento(s, TipoEventoSolicitacao.DESCONTO_RENEGOCIADO, s.getStatus(), s.getStatus(),
+                request.comentario(), request.actorUsuarioId());
     }
 }

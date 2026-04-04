@@ -44,7 +44,13 @@ public final class SolicitacaoMapper {
                 solicitanteNome != null && !solicitanteNome.equals("Sistema") ? solicitanteNome : s.getSolicitanteNome(),
                 documentistaNome,
                 valor,
-                s.getProvaEnvio()
+                s.getProvaEnvio(),
+                s.getLancamentoIds(),
+                s.getPrazoEntrega(),
+                s.getValorDesconto(),
+                s.getPercentualDesconto(),
+                s.getValorFinal(),
+                s.getDescontoRenegociado()
         );
     }
 
@@ -71,7 +77,8 @@ public final class SolicitacaoMapper {
                 toDocumentoResumo(s),
                 s.getDocumentistaId(),
                 documentista,
-                valorDoDocumentista
+                valorDoDocumentista,
+                s.getLancamentoIds()
         );
     }
 

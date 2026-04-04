@@ -56,4 +56,6 @@ public interface SolicitacaoDocumentoRepository extends JpaRepository<Solicitaca
     Page<SolicitacaoDocumento> findByOsIdAndStatusAndSegmentoNomeIn(Long osId, StatusSolicitacaoDocumento status, List<String> segmentoNome, Pageable pageable);
     Page<SolicitacaoDocumento> findByDocumentistaIdAndSegmentoNomeIn(Long documentistaId, List<String> segmentoNome, Pageable pageable);
     Page<SolicitacaoDocumento> findByDocumentistaIdAndStatusAndSegmentoNomeIn(Long documentistaId, StatusSolicitacaoDocumento status, List<String> segmentoNome, Pageable pageable);
+
+    List<SolicitacaoDocumento> findByOsIdIn(List<Long> osIds);
 }
